@@ -27,6 +27,7 @@ void getFds(std::set<Client, bool(*)(const Client&, const Client&)> listClient, 
     if (!listClient.empty()){
         for (; it != listClient.end(); ++it) {
             FD_SET((*it).getSocket(), &readfds);
+            std::cout << "in getFds\n";
         }
     }
 }
@@ -60,7 +61,8 @@ int main(int argc, char *argv[])
      if (bind(sockfd, (struct sockaddr *) &serv_addr,
               sizeof(serv_addr)) < 0)
               error("ERROR on binding");
-     listen(sockfd,5);
+     if (listen(sockfd,5) == -1)
+         error("ERROR on listen");
      clilen = sizeof(cli_addr);
      listClient.insert(sockfd);
      std::cout << sockfd << "\n";
@@ -72,6 +74,7 @@ int main(int argc, char *argv[])
          timeout.tv_usec = 0;
          int max_fd = (*(listClient.rbegin())).getSocket() + 1;
          retval = select(max_fd, &readfds, NULL, NULL, &timeout);
+         std::cout << "retval " << retval << "\n";
          if (retval < 0)
              error("Error select");
          if (FD_ISSET(sockfd, &readfds)) {
@@ -84,6 +87,7 @@ int main(int argc, char *argv[])
              Client newClient(newsockfd);
              listClient.insert(newClient);
              write(newsockfd, "welcome", strlen("welcome"));
+             FD_CLR(sockfd, &readfds);
 
          }
          std::set<Client, bool(*)(const Client&, const Client&)>::iterator it_list = listClient.begin();
