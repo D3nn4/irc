@@ -13,6 +13,7 @@ protected:
 public:
     Client(int sockets);
 		~Client();
+    Client(const Client &) = delete;
     int getSocket() const;
 };
 
