@@ -25,10 +25,12 @@ int main(int argc, char *argv[])
     char buffer[256];
     fd_set readfds;
     struct timeval timeout;
-    if (argc < 3) {
-        fprintf(stderr,"usage %s hostname port\n", argv[0]);
+    
+    if (argc < 4) {
+        std::cout << "Not enought arguments.\n";
         exit(0);
     }
+    std::string pseudo = argv[3];
     portno = atoi(argv[2]);
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) 
@@ -44,13 +46,15 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(portno);
     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
         error("ERROR connecting");
+    n = write(sockfd,pseudo.c_str(),(int)pseudo.size());
+    if (n < 0) 
+        error("ERROR writing to socket");
     while (true)
         {
             FD_ZERO(&readfds);
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
 
-            //printf("Please enter the message: ");
             bzero(buffer,256);
             FD_SET(STDIN_FILENO, &readfds);
             FD_SET(sockfd, &readfds);
@@ -60,12 +64,12 @@ int main(int argc, char *argv[])
                 error("error select");
             if (FD_ISSET(STDIN_FILENO, &readfds)) {
                 fgets(buffer,255,stdin);
-                n = write(sockfd,buffer,strlen(buffer));
-                if (n < 0) 
-                    error("ERROR writing to socket");
                 std::string str = buffer;
                 if(str.compare("q\n") == 0)
                     break;
+                n = write(sockfd,buffer,strlen(buffer));
+                if (n < 0) 
+                    error("ERROR writing to socket");
             }
             if (FD_ISSET(sockfd, &readfds)) {
                 bzero(buffer,256);

@@ -1,32 +1,35 @@
-NAME1 = CLIENT
-NAME2 = SERVER
+CLIENT = 	irc.exec
+SERVER = 	server.exec
 
-CFLAGS= -std=c++11 -ggdb3 -Wall -Wextra
-SRC1 = client/client.cpp \
-				client/main.cpp
-SRC2 = server/server.cpp
+CFLAGS= 	-std=c++11 -ggdb3 -Wall -Wextra
 
-HEADER = -I./client 
+SRC_CLIENT =	client/main.cpp
 
-OBJDIR =
+SRC_SERVER = 	server/main.cpp \
+							server/server.cpp
 
-all : $(NAME1) $(NAME2)
+SRC_LIB = 		lib/client.cpp
 
-$(NAME1) :
-	g++ $(CFLAGS) $(HEADER) -c $(SRC1)
-	g++ -o $(NAME1)   client.o main.o
+HEADER = 	-I./lib
 
+OBJDIR =	./objdir
 
+all : $(CLIENT) $(SERVER)
 
-$(NAME2) :
-	g++ $(CFLAGS) $(HEADER) -c $(SRC2)
-	g++ -o $(NAME2)  client.o server.o
-	mv *.o objdir
+$(CLIENT) :
+	g++ $(CFLAGS) $(HEADER) -c $(SRC_CLIENT)
+	g++ -o $(CLIENT)  	 main.o
+	mv main.o $(OBJDIR)
+
+$(SERVER) :
+	g++ $(CFLAGS) $(HEADER) -c $(SRC_SERVER) $(SRC_LIB)
+	g++ -o $(SERVER)  client.o server.o main.o
+	mv *.o $(OBJDIR)
 
 clean :
-	rm -f ./objdir/*.o
+	rm -f $(OBJDIR)/*.o 
 
 fclean : clean
-	rm -f $(NAME1) $(NAME2)
+	rm -f $(CLIENT) $(SERVER)
 
 re : fclean all

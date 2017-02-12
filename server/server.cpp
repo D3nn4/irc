@@ -1,4 +1,6 @@
 #include <string>
+#include <map>
+#include <stdbool.h>
 #include <errno.h>
 #include <stdio.h>
 #include <cstdlib>
@@ -13,15 +15,7 @@
 #include <functional>
 #include <iostream>
 #include "client.hpp"
-// struct Client {
-// public:
-//     Client(void) = delete;
-//     Client(int sockfd) : _sockfd(sockfd){};
-
-//     int _sockfd;
-
-//     int getSocket(void) const { return this->_sockfd; };
-// };
+#include "server.hpp"
 
 void error(const char *msg)
 {
@@ -29,103 +23,125 @@ void error(const char *msg)
     exit(1);
 }
 
-void getFds(std::set<Client, bool(*)(const Client&, const Client&)> &listClient, fd_set &readfds) {
-    //std::cout << "in getFds\n";
+// static bool compFun(const Client& lhs, const Client& rhs)
+// {
+//     return lhs.getSocket() < rhs.getSocket();
+// }
+
+Server::Server(char *port)
+{
+    // std::cout << "In constructor Server\n";
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+        error("ERROR opening socket");
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    portno = atoi(port);
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(portno);
+    if (bind(sockfd, (struct sockaddr *) &serv_addr,
+             sizeof(serv_addr)) < 0)
+        error("ERROR on binding");
+    if (listen(sockfd,5) == -1)
+        error("ERROR on listen");
+    // std::cout << "before emplace \n";
+    auto ret = clients.emplace(sockfd, sockfd);
+    ret.first->second.setPseudo("server");
+    // std::cout << "after emplace \n";
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+}
+
+void Server::getFds()
+{
+    // std::cout << "In getFds\n";
     FD_ZERO(&readfds);
-    std::set<Client>::iterator it = listClient.begin();
-    if (!listClient.empty()){
-        for (; it != listClient.end(); ++it) {
-            FD_SET((*it).getSocket(), &readfds);
+    Server::ClientList::iterator it = clients.begin();
+    if (!clients.empty()){
+        for (; it != clients.end(); ++it) {
+            FD_SET((it->second).getSocket(), &readfds);
         }
     }
 }
-int main(int argc, char *argv[])
+
+void Server::writeFd(Client& usr,char* buffer)
 {
-     int sockfd, newsockfd, portno;
-     socklen_t clilen;
-     char buffer[256];
-     struct sockaddr_in serv_addr, cli_addr;
-     int n, retval;
-     auto compFun = [] (const Client& c1, const Client& c2) -> bool
-                    {
-                        return c1.getSocket() < c2.getSocket();
-                    };
-     std::set<Client, bool(*)(const Client&, const Client&)> listClient(compFun);
-     fd_set readfds;
-     struct timeval timeout;
-     if (argc < 2) {
-         fprintf(stderr,"ERROR, no port provided\n");
-         exit(1);
-     }
+    // std::cout << "In writeFd\n";
+    int fd = usr.getSocket();
+    ClientList::iterator it_current = clients.begin();
+    for (; it_current != clients.end(); ++it_current) {
+        int write_fd = (it_current->second).getSocket();
+        if (fd == write_fd && (usr.getPseudo()).empty())
+            usr.setPseudo(buffer);
+        if (fd != write_fd && write_fd != sockfd) {
+            if (!(usr.getPseudo()).empty()) {
+                std::string msg = usr.getPseudo();
+                msg += ": ";
+                msg += buffer;
+                int n = write(write_fd, msg.c_str(), (int)msg.size());
+                if (n < 0)
+                    error("ERROR writing msg");
+            }
+            else {
+                usr.setPseudo(buffer);
+            }
+        }
+    }
+}
 
-     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-     if (sockfd < 0)
-        error("ERROR opening socket");
-     bzero((char *) &serv_addr, sizeof(serv_addr));
-     portno = atoi(argv[1]);
-     serv_addr.sin_family = AF_INET;
-     serv_addr.sin_addr.s_addr = INADDR_ANY;
-     serv_addr.sin_port = htons(portno);
-     if (bind(sockfd, (struct sockaddr *) &serv_addr,
-              sizeof(serv_addr)) < 0)
-              error("ERROR on binding");
-     if (listen(sockfd,5) == -1)
-         error("ERROR on listen");
-     clilen = sizeof(cli_addr);
-     listClient.emplace(sockfd);
-     std::cout << sockfd << "\n";
-     
-     while(true) {
-         FD_ZERO(&readfds);
-         getFds(listClient, readfds);
-         timeout.tv_sec = 1;
-         timeout.tv_usec = 0;
-         int max_fd = (*(listClient.rbegin())).getSocket() + 1;
-         retval = select(max_fd, &readfds, NULL, NULL, &timeout);
-         std::cout << "retval " << retval << "\n";
-         if (retval < 0)
-             error("Error select");
-         if (FD_ISSET(sockfd, &readfds)) {
-             std::cout << "lets accept\n";
-             if ((newsockfd = accept(sockfd,
-                                    (struct sockaddr *) &cli_addr,
-                                     &clilen)) < 0) {
-                 error("ERROR on accept");
-             }
-             // Client newClient(newsockfd);
-             listClient.emplace(newsockfd);
-             write(newsockfd, "welcome", strlen("welcome"));
-             FD_CLR(sockfd, &readfds);
+void Server::addNewClient()
+{
+    // std::cout << "In addNewClient\n";
+    struct sockaddr_in cli_addr;
+    socklen_t clilen = sizeof(cli_addr);
+    int newsockfd = 0;
+    if ((newsockfd = accept(sockfd,
+                            (struct sockaddr *) &cli_addr,
+                            &clilen)) < 0) {
+        error("ERROR on accept");
+    }
+    clients.emplace(newsockfd,newsockfd);
+    write(newsockfd, "welcome", strlen("welcome"));
+    FD_CLR(sockfd, &readfds);
+}
 
-         }
-         std::set<Client, bool(*)(const Client&, const Client&)>::iterator it_list = listClient.begin();
-         for (; it_list != listClient.end(); ++it_list) {
-             int curr_sock = (*it_list).getSocket();
-             if (FD_ISSET(curr_sock, &readfds)) {
-                 bzero(buffer,256);
-                 n = read(curr_sock,buffer,255);
-                 if (n < 0)
-                     error("ERROR reading from socket");
-                 if (n == 0){
-                     FD_CLR(curr_sock, &readfds);
-                     listClient.erase(curr_sock);
-                 }
-                 else {
-                     std::string str = buffer;
-                     printf("Here is the message: %s\n",buffer);
-                 }
-                 std::set<Client, bool(*)(const Client&, const Client&)>::iterator it_current = listClient.begin();
-                 for (; it_current != listClient.end(); ++it_current) {
-                     int current_fd = (*it_current).getSocket();
-                     if (curr_sock != current_fd && current_fd != sockfd)
-                         n = write(current_fd, buffer,strlen(buffer));
-                     if (n < 0)
-                         error("ERROR writing to socket");
-                 }
-             }
-         }
-     }
-     close(newsockfd);
-     close(sockfd);
-     return 0;
+void Server::readFd(Client& read_sock)
+{
+    // std::cout << "in readFd\n";
+    char buffer[256];
+    bzero(buffer,256);
+    int fd = read_sock.getSocket();
+    int n = read(fd,buffer,255);
+    if (n < 0)
+        error("ERROR reading from socket");
+    if (n == 0){
+        FD_CLR(fd, &readfds);
+        clients.erase(read_sock.getSocket());
+    }
+    else {
+        std::string str = buffer;
+        std::cout << "Here is the message:" << buffer << "\n";
+        writeFd(read_sock, buffer);
+    }
+}
+
+bool Server::actionsOnFds(){
+    // std::cout << "In actionsOnFds\n";
+    int max_fd = clients.rbegin()->first;
+    FD_ZERO(&readfds);
+    getFds();
+    int retval = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
+    if (retval < 0)
+        error("Error select");
+    if(FD_ISSET(sockfd, &readfds))
+        addNewClient();
+    ClientList::iterator it_list = clients.begin();
+    for (; it_list != clients.end(); ++it_list) {
+        Client& read_sock = it_list->second;
+        if (FD_ISSET(read_sock.getSocket(), &readfds)
+            && read_sock.getSocket() != sockfd)
+            readFd(read_sock);
+    }
+    return true;
 }
