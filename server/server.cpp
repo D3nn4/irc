@@ -46,7 +46,8 @@ Server::Server(char *port)
         error("ERROR on listen");
     // std::cout << "before emplace \n";
     auto ret = clients.emplace(sockfd, sockfd);
-    ret.first->second.setPseudo("server");
+    std::string pseudo = "server";
+    ret.first->second.setPseudo(pseudo);
     // std::cout << "after emplace \n";
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
@@ -65,9 +66,9 @@ void Server::getFds()
     }
 }
 
-void Server::writeFd(Client& usr,char* buffer)
+void Server::writeFd(Client& usr,std::string buffer)
 {
-    // std::cout << "In writeFd\n";
+    // std::cout << "in writefd\n";
     int fd = usr.getSocket();
     ClientList::iterator it_current = clients.begin();
     for (; it_current != clients.end(); ++it_current) {
@@ -79,9 +80,9 @@ void Server::writeFd(Client& usr,char* buffer)
                 std::string msg = usr.getPseudo();
                 msg += ": ";
                 msg += buffer;
-                int n = write(write_fd, msg.c_str(), (int)msg.size());
+                int n = write(write_fd, msg.c_str(), (int)msg.size() - 1);
                 if (n < 0)
-                    error("ERROR writing msg");
+                    error("error writing msg");
             }
             else {
                 usr.setPseudo(buffer);
@@ -121,8 +122,8 @@ void Server::readFd(Client& read_sock)
     }
     else {
         std::string str = buffer;
-        std::cout << "Here is the message:" << buffer << "\n";
-        writeFd(read_sock, buffer);
+        std::cout << "Here is the message:" << str << "\n";
+        writeFd(read_sock, str);
     }
 }
 

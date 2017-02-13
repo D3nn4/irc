@@ -26,7 +26,7 @@ public:
     bool actionsOnFds();
     void addNewClient();
     void readFd(Client& read_sock);
-    void writeFd(Client& usr, char* buffer);
+    void writeFd(Client& usr, std::string buffer);
     
 
     typedef std::map<int, Client> ClientList; 

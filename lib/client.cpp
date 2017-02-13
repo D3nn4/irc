@@ -5,9 +5,9 @@
 #include <unistd.h>
 #include "client.hpp"
 
-Client::Client(int socket, char* str)
+Client::Client(int socket, std::string pseudo)
     :_socket(socket),
-     _pseudo(str){}
+     _pseudo(pseudo){}
 
 Client::Client(int socket)
     :_socket(socket){}
@@ -34,7 +34,7 @@ std::string Client::getPseudo() const
     return _pseudo;
 }
 
-void Client::setPseudo(char* pseudo)
+void Client::setPseudo(std::string pseudo)
 {
     std::cout << "In set pseudo\n";
     _pseudo = pseudo;
