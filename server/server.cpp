@@ -23,14 +23,9 @@ void error(const char *msg)
     exit(1);
 }
 
-// static bool compFun(const Client& lhs, const Client& rhs)
-// {
-//     return lhs.getSocket() < rhs.getSocket();
-// }
 
 Server::Server(char *port)
 {
-    // std::cout << "In constructor Server\n";
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
         error("ERROR opening socket");
@@ -44,11 +39,9 @@ Server::Server(char *port)
         error("ERROR on binding");
     if (listen(sockfd,5) == -1)
         error("ERROR on listen");
-    // std::cout << "before emplace \n";
     auto ret = clients.emplace(sockfd, sockfd);
     std::string pseudo = "server";
     ret.first->second.setPseudo(pseudo);
-    // std::cout << "after emplace \n";
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
 
@@ -127,10 +120,10 @@ void Server::readFd(Client& read_sock)
     }
 }
 
-bool Server::actionsOnFds(){
+bool Server::actionsOnFds()
+{
     // std::cout << "In actionsOnFds\n";
     int max_fd = clients.rbegin()->first;
-    FD_ZERO(&readfds);
     getFds();
     int retval = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
     if (retval < 0)
